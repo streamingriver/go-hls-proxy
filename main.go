@@ -37,6 +37,8 @@ func main() {
 	remap := new(Remap)
 	remap.Init()
 
+	m3u8fetcher := NewM3U8()
+
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		parts := strings.Split(r.URL.EscapedPath(), "/")
 		parts = parts[1:]
@@ -45,7 +47,8 @@ func main() {
 			m3u8url1, _ := url.Parse(*flagURL)
 			m3u8url2, _ := m3u8url1.Parse(newurl)
 			m3u8url2.RawQuery = m3u8url1.RawQuery
-			response := fetch(m3u8url2.String())
+			response := m3u8fetcher.Get(m3u8url2.String())
+			// response := fetch(m3u8url2.String())
 			if response.err != nil {
 				log.Printf("%v", response.err)
 				if response.err != nil {
