@@ -85,11 +85,13 @@ func (m3u8 *M3U8) fixTs(response *Response) {
 			newname, isNew := m3u8.remap.Add(tsurl.String())
 			response.body = bytes.ReplaceAll(response.body, []byte(line), []byte(newname))
 			if isNew {
-				_, err := (&http.Client{Timeout: 1 * time.Second}).Head("http://localhost:8080/" + newname)
-				if err != nil {
-					log.Printf("%v", err)
-				}
-				log.Printf("schedule download: %v", tsurl.String())
+				go func(newname string) {
+					_, err := (&http.Client{Timeout: 3 * time.Second}).Head("http://" + *flagBindTo + "/" + newname)
+					if err != nil {
+						log.Printf("%v", err)
+					}
+					log.Printf("schedule download: %v", tsurl.String())
+				}(newname)
 			}
 		}
 	}
