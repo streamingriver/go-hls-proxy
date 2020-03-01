@@ -27,11 +27,11 @@ func (m3u8 *M3U8) Get(url string) *Response {
 	if atomic.CompareAndSwapInt32(&m3u8.running, 0, 1) {
 		log.Printf("Starting worker....")
 		m3u8.url = url
-		atomic.StoreInt64(&m3u8.seen, time.Now().Unix()+10)
+		atomic.StoreInt64(&m3u8.seen, time.Now().Unix()+30)
 		m3u8.worker(true, false)
 		go m3u8.worker(false, true)
 	}
-	atomic.StoreInt64(&m3u8.seen, time.Now().Unix()+5)
+	atomic.StoreInt64(&m3u8.seen, time.Now().Unix()+30)
 	m3u8.mu.RLock()
 	defer m3u8.mu.RUnlock()
 	return m3u8.cache
