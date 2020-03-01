@@ -1,16 +1,22 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"log"
+	"net/http"
+	"net/url"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 )
 
-func NewM3U8() *M3U8 {
+func NewM3U8(remap *Remap) *M3U8 {
 	m := &M3U8{
 		mu:    &sync.RWMutex{},
 		cache: &Response{},
+		remap: remap,
 	}
 	return m
 }
@@ -21,6 +27,7 @@ type M3U8 struct {
 	seen    int64
 	running int32
 	mu      *sync.RWMutex
+	remap   *Remap
 }
 
 func (m3u8 *M3U8) Get(url string) *Response {
@@ -53,6 +60,7 @@ func (m3u8 *M3U8) worker(start, delay bool) {
 			continue
 		}
 		m3u8.mu.Lock()
+		m3u8.fixTs(response)
 		m3u8.cache = response
 		m3u8.mu.Unlock()
 		if start {
@@ -60,6 +68,32 @@ func (m3u8 *M3U8) worker(start, delay bool) {
 		}
 		time.Sleep(3 * time.Second)
 	}
+}
+
+func (m3u8 *M3U8) fixTs(response *Response) {
+
+	m3u8url1, _ := url.Parse(m3u8.url)
+
+	reader := bytes.NewReader(response.body)
+	scanner := bufio.NewScanner(reader)
+
+	for scanner.Scan() {
+		line := strings.Trim(string(scanner.Text()), "\n")
+		if strings.Contains(line, ".ts") {
+			tsurl, _ := m3u8url1.Parse(line)
+			tsurl.RawQuery = m3u8url1.RawQuery
+			newname, isNew := m3u8.remap.Add(tsurl.String())
+			response.body = bytes.ReplaceAll(response.body, []byte(line), []byte(newname))
+			if isNew {
+				_, err := (&http.Client{Timeout: 1 * time.Second}).Head("http://localhost:8080/" + newname)
+				if err != nil {
+					log.Printf("%v", err)
+				}
+				log.Printf("schedule download: %v", tsurl.String())
+			}
+		}
+	}
+
 }
 
 func bcopy(src []byte) []byte {

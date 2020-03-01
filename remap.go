@@ -21,13 +21,13 @@ func (r *Remap) Init() {
 	r.mu = &sync.RWMutex{}
 }
 
-func (r *Remap) Add(url string) string {
+func (r *Remap) Add(url string) (string, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	value, ok := r.m[url]
 	if ok {
-		return value
+		return value, false
 	}
 	newurl := fmt.Sprintf("%d.ts", time.Now().UnixNano())
 	r.m[url] = newurl
@@ -36,7 +36,7 @@ func (r *Remap) Add(url string) string {
 
 	r.removeLast()
 
-	return r.m[url]
+	return r.m[url], true
 }
 
 func (r *Remap) Get(url string) string {

@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -37,7 +35,7 @@ func main() {
 	remap := new(Remap)
 	remap.Init()
 
-	m3u8fetcher := NewM3U8()
+	m3u8fetcher := NewM3U8(remap)
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		parts := strings.Split(r.URL.EscapedPath(), "/")
@@ -54,19 +52,6 @@ func main() {
 				if response.err != nil {
 					http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 					return
-				}
-			}
-
-			reader := bytes.NewReader(response.body)
-			scanner := bufio.NewScanner(reader)
-
-			for scanner.Scan() {
-				line := strings.Trim(string(scanner.Text()), "\n")
-				if strings.Contains(line, ".ts") {
-					tsurl, _ := m3u8url2.Parse(line)
-					tsurl.RawQuery = m3u8url2.RawQuery
-					newname := remap.Add(tsurl.String())
-					response.body = bytes.ReplaceAll(response.body, []byte(line), []byte(newname))
 				}
 			}
 
@@ -87,10 +72,14 @@ func main() {
 				return response, response.err
 
 			})
+
 			response := rsp.(*Response)
 			if response.err != nil {
 				log.Printf("%v", response.err)
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			}
+			if r.Method == "HEAD" {
 				return
 			}
 			w.Header().Set("Content-Type", "text/vnd.trolltech.linguist")
