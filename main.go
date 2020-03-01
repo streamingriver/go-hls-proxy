@@ -42,9 +42,10 @@ func main() {
 		parts = parts[1:]
 		newurl := strings.Join(parts, "/")
 		if strings.HasSuffix(r.URL.EscapedPath(), ".m3u8") {
-			m3u8url, _ := url.Parse(*flagURL)
-			m3u8url, _ = m3u8url.Parse(newurl)
-			response := fetch(m3u8url.String())
+			m3u8url1, _ := url.Parse(*flagURL)
+			m3u8url2, _ := m3u8url1.Parse(newurl)
+			m3u8url2.RawQuery = m3u8url1.RawQuery
+			response := fetch(m3u8url2.String())
 			if response.err != nil {
 				log.Printf("%v", response.err)
 				if response.err != nil {
@@ -59,8 +60,8 @@ func main() {
 			for scanner.Scan() {
 				line := strings.Trim(string(scanner.Text()), "\n")
 				if strings.Contains(line, ".ts") {
-					tsurl, _ := m3u8url.Parse(line)
-					tsurl.RawQuery = m3u8url.RawQuery
+					tsurl, _ := m3u8url2.Parse(line)
+					tsurl.RawQuery = m3u8url2.RawQuery
 					newname := remap.Add(tsurl.String())
 					response.body = bytes.ReplaceAll(response.body, []byte(line), []byte(newname))
 				}
