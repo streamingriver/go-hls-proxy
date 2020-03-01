@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -16,7 +17,10 @@ import (
 )
 
 var (
-	flagURL = flag.String("url", "", "m3u8 url")
+	flagURL    = flag.String("url", "", "m3u8 url")
+	flagFE     = flag.String("frontend", "", "frontend")
+	flagBindTo = flag.String("bind-to", ":0", "bind to port")
+	flagName   = flag.String("name", "test", "channel name")
 
 	re = regexp.MustCompile(".*?.ts")
 
@@ -30,6 +34,18 @@ func main() {
 	if *flagURL == "" {
 		println("set --url http://url.here")
 		return
+	}
+	if *flagFE != "" {
+		go pinger()
+	}
+
+	if *flagBindTo == ":0" {
+		l, err := net.Listen("tcp", ":0")
+		if err != nil {
+			panic(err)
+		}
+		*flagBindTo = l.Addr().String()
+		l.Close()
 	}
 
 	remap := new(Remap)
@@ -99,8 +115,8 @@ func main() {
 			w.Write(response.body)
 		}
 	})
-	log.Printf("Starting server on :8080")
-	http.ListenAndServe(":8080", nil)
+	log.Printf("Starting server on " + *flagBindTo)
+	http.ListenAndServe(*flagBindTo, nil)
 }
 
 type Response struct {
