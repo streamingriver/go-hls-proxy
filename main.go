@@ -71,6 +71,7 @@ func main() {
 				}
 			}
 			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Allow-Methods", "GET")
 			w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 			w.Header().Set("Content-Length", fmt.Sprintf("%d", len(response.body)))
 			w.Write(response.body)
@@ -99,6 +100,7 @@ func main() {
 				return
 			}
 			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Allow-Methods", "GET")
 			w.Header().Set("Content-Type", "text/vnd.trolltech.linguist")
 			w.Header().Set("Content-Length", fmt.Sprintf("%d", len(response.body)))
 			w.Write(response.body)
@@ -112,6 +114,7 @@ func main() {
 				}
 			}
 			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Allow-Methods", "GET")
 			w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 			w.Header().Set("Content-Length", fmt.Sprintf("%d", len(response.body)))
 			w.Write(response.body)
