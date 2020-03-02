@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grafov/m3u8"
 	lru "github.com/hashicorp/golang-lru"
 	"golang.org/x/sync/singleflight"
 )
@@ -53,12 +55,31 @@ func main() {
 
 	m3u8fetcher := NewM3U8(remap)
 
+	_url := *flagURL
+	m3u8url1, _ := url.Parse(_url)
+restart:
+	response := fetch(m3u8url1.String())
+	buf := bytes.NewBuffer(response.body)
+	pl, pt, err := m3u8.Decode(*buf, true)
+	if err != nil {
+		log.Fatalf("Cant parse input m3u8 playlist: %v", err)
+	}
+	if pt == m3u8.MASTER {
+		masterpl := pl.(*m3u8.MasterPlaylist)
+		if len(masterpl.Variants) == 0 {
+			log.Fatalf("Cant parse input m3u8 playlist")
+		}
+		m3u8url1, _ = m3u8url1.Parse(masterpl.Variants[0].URI)
+		goto restart
+	}
+	//check if we have final playlist
+	// response := fetch(m3u8url1.String())
+
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		parts := strings.Split(r.URL.EscapedPath(), "/")
 		parts = parts[1:]
 		newurl := strings.Join(parts, "/")
 		if strings.HasSuffix(r.URL.EscapedPath(), ".m3u8") {
-			m3u8url1, _ := url.Parse(*flagURL)
 			m3u8url2, _ := m3u8url1.Parse(newurl)
 			m3u8url2.RawQuery = m3u8url1.RawQuery
 			response := m3u8fetcher.Get(m3u8url2.String())
