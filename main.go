@@ -80,9 +80,9 @@ restart:
 		parts = parts[1:]
 		newurl := strings.Join(parts, "/")
 		if strings.HasSuffix(r.URL.EscapedPath(), ".m3u8") {
-			m3u8url2, _ := m3u8url1.Parse(newurl)
-			m3u8url2.RawQuery = m3u8url1.RawQuery
-			response := m3u8fetcher.Get(m3u8url2.String())
+			// m3u8url2, _ := m3u8url1.Parse(newurl)
+			// m3u8url2.RawQuery = m3u8url1.RawQuery
+			response := m3u8fetcher.Get(m3u8url1.String())
 			// response := fetch(m3u8url2.String())
 			if response.err != nil {
 				log.Printf("%v", response.err)
