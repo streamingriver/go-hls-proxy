@@ -36,7 +36,6 @@ var (
 )
 
 func CacheGet(url string, remap *Remap) *Response {
-	println("###### DEBUG", url)
 	m3u8mu.Lock()
 	m3u8fetcher, ok := m3u8cache[url]
 	if !ok {
@@ -109,7 +108,7 @@ func main() {
 			if !isMasterPlaylist {
 				response = CacheGet(m3u8url1.String(), remap)
 			} else {
-				response = m3u8fetcher2.GetSimple(m3u8url1.String())
+				response = m3u8fetcher2.GetSimple(m3u8url1.String(), r.URL.Query().Get("token"))
 			}
 			if response.err != nil {
 				log.Printf("%v", response.err)
