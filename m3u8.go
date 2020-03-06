@@ -40,16 +40,20 @@ type M3U8 struct {
 }
 
 func (m3u8 *M3U8) GetSimple(u string, token string) *Response {
-	localurl, _ := url.Parse(u)
 	localurl2, _ := url.Parse(u)
 	value, _, _ := sfg.Do(localurl2.String(), func() (interface{}, error) {
 		value, ok := cacheMasterPlaylist.Get(localurl2.String())
+		response := new(Response)
 		if ok {
 			cache := value.(*Response)
+			response.headers = cache.headers.Clone()
+			response.err = cache.err
+			tmp := bcopy(cache.body)
 			if token != "" {
-				cache.body = bytes.ReplaceAll(m3u8.cache.body, []byte(".m3u8"), []byte(fmt.Sprintf(".m3u8?token=%s", token)))
+				tmp = bytes.ReplaceAll(tmp, []byte(".m3u8"), []byte(fmt.Sprintf(".m3u8?token=%s", token)))
 			}
-			return cache, nil
+			response.body = tmp
+			return response, nil
 		}
 
 		m3u8.mu.Lock()
@@ -61,13 +65,16 @@ func (m3u8 *M3U8) GetSimple(u string, token string) *Response {
 		m3u8.mu.RLock()
 		defer m3u8.mu.RUnlock()
 
-		cacheMasterPlaylist.Add(localurl.String(), m3u8.cache, 1*time.Minute)
+		cacheMasterPlaylist.Add(localurl2.String(), m3u8.cache, 1*time.Minute)
 
+		response.headers = m3u8.cache.headers.Clone()
+		response.err = m3u8.cache.err
+		tmp := bcopy(m3u8.cache.body)
 		if token != "" {
-			m3u8.cache.body = bytes.ReplaceAll(m3u8.cache.body, []byte(".m3u8"), []byte(fmt.Sprintf(".m3u8?token=%s", token)))
+			tmp = bytes.ReplaceAll(tmp, []byte(".m3u8"), []byte(fmt.Sprintf(".m3u8?token=%s", token)))
 		}
-
-		return m3u8.cache, nil
+		response.body = tmp
+		return response, nil
 	})
 
 	return value.(*Response)
