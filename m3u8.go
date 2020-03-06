@@ -45,7 +45,11 @@ func (m3u8 *M3U8) GetSimple(u string, token string) *Response {
 	value, _, _ := sfg.Do(localurl2.String(), func() (interface{}, error) {
 		value, ok := cacheMasterPlaylist.Get(localurl2.String())
 		if ok {
-			return value.(*Response), nil
+			cache := value.(*Response)
+			if token != "" {
+				cache.body = bytes.ReplaceAll(m3u8.cache.body, []byte(".m3u8"), []byte(fmt.Sprintf(".m3u8?token=%s", token)))
+			}
+			return cache, nil
 		}
 
 		m3u8.mu.Lock()
@@ -57,11 +61,11 @@ func (m3u8 *M3U8) GetSimple(u string, token string) *Response {
 		m3u8.mu.RLock()
 		defer m3u8.mu.RUnlock()
 
+		cacheMasterPlaylist.Add(localurl.String(), m3u8.cache, 1*time.Minute)
+
 		if token != "" {
 			m3u8.cache.body = bytes.ReplaceAll(m3u8.cache.body, []byte(".m3u8"), []byte(fmt.Sprintf(".m3u8?token=%s", token)))
 		}
-
-		cacheMasterPlaylist.Add(localurl.String(), m3u8.cache, 1*time.Minute)
 
 		return m3u8.cache, nil
 	})
