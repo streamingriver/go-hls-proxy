@@ -48,7 +48,7 @@ func (r *Remap) Get(url string) string {
 }
 
 func (r *Remap) removeLast() {
-	for r.l.Len() >= 10 {
+	for r.l.Len() >= 30 {
 		item := r.l.Back()
 		u := r.m[item.Value.(string)]
 		url := r.rm[u]

@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/grafov/m3u8"
@@ -29,7 +30,23 @@ var (
 	lrucache, _ = lru.New(10)
 
 	sfl = singleflight.Group{}
+
+	m3u8mu    = &sync.RWMutex{}
+	m3u8cache = make(map[string]*M3U8)
 )
+
+func CacheGet(url string, remap *Remap) *Response {
+	println("###### DEBUG", url)
+	m3u8mu.Lock()
+	m3u8fetcher, ok := m3u8cache[url]
+	if !ok {
+
+		m3u8fetcher = NewM3U8(remap)
+		m3u8cache[url] = m3u8fetcher
+	}
+	m3u8mu.Unlock()
+	return m3u8fetcher.Get(url)
+}
 
 func main() {
 	flag.Parse()
@@ -52,25 +69,31 @@ func main() {
 
 	remap := new(Remap)
 	remap.Init()
-
 	m3u8fetcher := NewM3U8(remap)
+	_ = m3u8fetcher
+
+	remap2 := new(Remap)
+	remap2.Init()
+	m3u8fetcher2 := NewM3U8(remap2)
 
 	_url := *flagURL
 	m3u8url1, _ := url.Parse(_url)
-restart:
+	// restart:
 	response := fetch(m3u8url1.String())
 	buf := bytes.NewBuffer(response.body)
 	pl, pt, err := m3u8.Decode(*buf, true)
 	if err != nil {
 		log.Fatalf("Cant parse input m3u8 playlist: %v", err)
 	}
+	isMasterPlaylist := false
 	if pt == m3u8.MASTER {
 		masterpl := pl.(*m3u8.MasterPlaylist)
 		if len(masterpl.Variants) == 0 {
 			log.Fatalf("Cant parse input m3u8 playlist")
 		}
-		m3u8url1, _ = m3u8url1.Parse(masterpl.Variants[0].URI)
-		goto restart
+		// m3u8url1, _ = m3u8url1.Parse(masterpl.Variants[0].URI)
+		isMasterPlaylist = true
+		// goto restart
 	}
 	//check if we have final playlist
 	// response := fetch(m3u8url1.String())
@@ -79,11 +102,32 @@ restart:
 		parts := strings.Split(r.URL.EscapedPath(), "/")
 		parts = parts[1:]
 		newurl := strings.Join(parts, "/")
-		if strings.HasSuffix(r.URL.EscapedPath(), ".m3u8") {
-			// m3u8url2, _ := m3u8url1.Parse(newurl)
-			// m3u8url2.RawQuery = m3u8url1.RawQuery
-			response := m3u8fetcher.Get(m3u8url1.String())
-			// response := fetch(m3u8url2.String())
+
+		if strings.HasSuffix(r.URL.EscapedPath(), "stream.m3u8") {
+			// println(m3u8url1.String())
+			var response *Response
+			if !isMasterPlaylist {
+				response = CacheGet(m3u8url1.String(), remap)
+			} else {
+				response = m3u8fetcher2.GetSimple(m3u8url1.String())
+			}
+			if response.err != nil {
+				log.Printf("%v", response.err)
+				if response.err != nil {
+					http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+					return
+				}
+			}
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Allow-Methods", "GET")
+			w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
+			w.Header().Set("Content-Length", fmt.Sprintf("%d", len(response.body)))
+			w.Write(response.body)
+
+		} else if strings.HasSuffix(r.URL.EscapedPath(), ".m3u8") {
+			m3u8url2, _ := m3u8url1.Parse(newurl)
+			m3u8url2.RawQuery = m3u8url1.RawQuery
+			response := CacheGet(m3u8url2.String(), remap)
 			if response.err != nil {
 				log.Printf("%v", response.err)
 				if response.err != nil {
@@ -158,7 +202,7 @@ func fetch(url string) *Response {
 	hc := http.Client{Timeout: 10 * time.Second}
 
 	request, _ := http.NewRequest("GET", url, nil)
-	request.Header.Set("User-Agent", "iptv/1.0")
+	request.Header.Set("User-Agent", "streamingriveriptv/1.0")
 
 	response, err := hc.Do(request)
 	if err != nil {

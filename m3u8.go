@@ -10,6 +10,14 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/patrickmn/go-cache"
+	"golang.org/x/sync/singleflight"
+)
+
+var (
+	cacheMasterPlaylist = cache.New(1*time.Minute, 1*time.Minute)
+	sfg                 = singleflight.Group{}
 )
 
 func NewM3U8(remap *Remap) *M3U8 {
@@ -28,6 +36,30 @@ type M3U8 struct {
 	running int32
 	mu      *sync.RWMutex
 	remap   *Remap
+}
+
+func (m3u8 *M3U8) GetSimple(url string) *Response {
+	value, _, _ := sfg.Do(url, func() (interface{}, error) {
+		value, ok := cacheMasterPlaylist.Get(url)
+		if ok {
+			return value.(*Response), nil
+		}
+
+		m3u8.mu.Lock()
+		m3u8.url = url
+		m3u8.mu.Unlock()
+
+		m3u8.worker(true, false)
+
+		m3u8.mu.RLock()
+		defer m3u8.mu.RUnlock()
+
+		cacheMasterPlaylist.Add(url, m3u8.cache, 1*time.Minute)
+
+		return m3u8.cache, nil
+	})
+
+	return value.(*Response)
 }
 
 func (m3u8 *M3U8) Get(url string) *Response {
@@ -49,7 +81,7 @@ func (m3u8 *M3U8) worker(start, delay bool) {
 		if delay {
 			time.Sleep(3 * time.Second)
 		}
-		if atomic.LoadInt64(&m3u8.seen) < time.Now().Unix() {
+		if atomic.LoadInt64(&m3u8.seen) < time.Now().Unix() && !start {
 			log.Printf("m3u8 worker exiting...")
 			atomic.StoreInt32(&m3u8.running, 0)
 			return
